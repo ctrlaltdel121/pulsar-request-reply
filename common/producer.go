@@ -2,25 +2,22 @@ package common
 
 import (
 	"context"
-	"fmt"
-	"log"
 
-	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/fanatic/pulsar-request-reply/transport"
 )
 
 type Producer struct {
-	producer pulsar.Producer
+	producer transport.Session
 }
 
-func NewProducer(ctx context.Context, client pulsar.Client, topic string) (*Producer, error) {
-	// Use the client to instantiate a producer
-	producer, err := client.CreateProducer(pulsar.ProducerOptions{
+func NewProducer(ctx context.Context, t transport.Connection, topic string) (*Producer, error) {
+	sess, err := transport.CreateSession(t, &transport.SessionOpts{
 		Topic: topic,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create producer: %w", err)
+		return nil, err
 	}
-	return &Producer{producer}, nil
+	return &Producer{sess}, nil
 }
 
 func (p *Producer) Close() {
@@ -28,17 +25,31 @@ func (p *Producer) Close() {
 	p.producer.Close()
 }
 
+// to produce using transport, make an interface-compliant structure for outgoing messages
+type myMessage struct {
+	payload []byte
+	headers map[string]string
+	key     string
+}
+
+func (m *myMessage) Payload() []byte {
+	return m.payload
+}
+
+func (m *myMessage) Headers() map[string]string {
+	return m.headers
+}
+
+func (m *myMessage) Key() string {
+	return m.key
+}
+
 func (p *Producer) Produce(ctx context.Context, payload []byte, properties map[string]string) {
-	asyncMsg := pulsar.ProducerMessage{
-		Payload:    payload,
-		Properties: properties,
+	asyncMsg := myMessage{
+		payload: payload,
+		headers: properties,
+		key:     "",
 	}
 
-	p.producer.SendAsync(ctx, &asyncMsg, func(msgID pulsar.MessageID, msg *pulsar.ProducerMessage, err error) {
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		log.Printf("the %s successfully published with the message ID %v\n", string(msg.Payload), msgID)
-	})
+	transport.ProduceMsg(ctx, p.producer, &asyncMsg, &transport.ProduceMsgOpts{Async: true})
 }

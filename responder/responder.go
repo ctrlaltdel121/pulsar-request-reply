@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/fanatic/pulsar-request-reply/common"
+	"github.com/fanatic/pulsar-request-reply/transport"
 )
 
 type Responder struct {
@@ -14,10 +14,10 @@ type Responder struct {
 	consumer *common.Consumer
 }
 
-func New(ctx context.Context, client pulsar.Client, topic, subscriptionName string) (*Responder, error) {
+func New(ctx context.Context, t transport.Connection, topic, subscriptionName string) (*Responder, error) {
 	log.Printf("creating responder...")
 
-	consumer, err := common.NewConsumer(ctx, client, topic, subscriptionName)
+	consumer, err := common.NewConsumer(ctx, t, topic, subscriptionName)
 	if err != nil {
 		return nil, fmt.Errorf("Could not instantiate Pulsar consumer: %v", err)
 	}

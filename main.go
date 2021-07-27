@@ -5,41 +5,37 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/apache/pulsar-client-go/pulsar"
-	lib "github.com/fanatic/pulsar-request-reply/requester"
+	"github.com/fanatic/pulsar-request-reply/requester"
 	"github.com/fanatic/pulsar-request-reply/responder"
 	"github.com/fanatic/pulsar-request-reply/timing"
+	"github.com/fanatic/pulsar-request-reply/transport"
 )
 
 func main() {
-	client, err := pulsar.NewClient(pulsar.ClientOptions{
-		URL: "pulsar://localhost:6650",
-	})
+	t, err := transport.Connect(&transport.ConnectOpts{Type: "pulsar", URL: "pulsar://localhost:6650"})
 	if err != nil {
-		log.Fatalf("Could not instantiate Pulsar client: %v", err)
+		log.Fatalf("Could not create transport: %s", err)
 	}
-
-	defer client.Close()
 
 	ctx := context.Background()
 
 	// Setup Response Handler (server-side)
-	go responder.HandleResponses(ctx, client, "echo-service", helloHandler)
+	go responder.HandleResponses(ctx, t, "echo-service", helloHandler)
 
 	// Make our test requests (client-side)
 	for i := 10; i >= 0; i-- {
-		hello(ctx, client, "hello")
+		hello(ctx, t, "hello")
 	}
 
-	asyncHello(ctx, client, "hello")
+	asyncHello(ctx, t, "hello")
 
 	timing.Results()
 }
 
-func hello(ctx context.Context, client pulsar.Client, payload string) {
+func hello(ctx context.Context, conn transport.Connection, payload string) {
 	defer timing.New("rtt").Start().Stop()
 
-	reply, err := lib.Request(ctx, client, "echo-service", []byte(payload))
+	reply, err := requester.Request(ctx, conn, "echo-service", []byte(payload))
 	if err != nil {
 		log.Fatalf("Request failed: %v", err)
 	}
@@ -52,14 +48,14 @@ func helloHandler(payload []byte) ([]byte, error) {
 	return []byte(fmt.Sprintf("Received: %s", payload)), nil
 }
 
-func asyncHello(ctx context.Context, client pulsar.Client, payload string) {
+func asyncHello(ctx context.Context, conn transport.Connection, payload string) {
 	defer timing.New("async-rtt").Start().Stop()
 
 	reply := make(chan []byte)
 	n := 100
 
 	for i := 0; i < n; i++ {
-		err := lib.AsyncRequest(ctx, client, "echo-service", []byte(payload), reply)
+		err := requester.AsyncRequest(ctx, conn, "echo-service", []byte(payload), reply)
 		if err != nil {
 			log.Fatalf("Request failed: %v", err)
 		}

@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/fanatic/pulsar-request-reply/requester"
 	"github.com/fanatic/pulsar-request-reply/responder"
+	"github.com/fanatic/pulsar-request-reply/transport"
 )
 
 type APIGatewayProxyRequest struct {
@@ -35,16 +35,14 @@ type APIGatewayProxyResponse struct {
 }
 
 func bridge() {
-	client, err := pulsar.NewClient(pulsar.ClientOptions{
-		URL: "pulsar://localhost:6650",
-	})
+	t, err := transport.Connect(&transport.ConnectOpts{Type: "pulsar", URL: "pulsar://localhost:6650"})
 	if err != nil {
-		log.Fatalf("Could not instantiate Pulsar client: %v", err)
+		log.Fatalf("Could not create transport: %s", err)
 	}
 
-	defer client.Close()
+	defer t.Close()
 
-	go responder.HandleResponses(context.Background(), client, "welcome-service", bridgeHandler)
+	go responder.HandleResponses(context.Background(), t, "welcome-service", bridgeHandler)
 
 	http.HandleFunc("/welcome-service", func(w http.ResponseWriter, r *http.Request) {
 		buf := new(bytes.Buffer)
@@ -66,7 +64,7 @@ func bridge() {
 			Body:                  buf.String(),
 			IsBase64Encoded:       true,
 		})
-		reply, err := requester.Request(r.Context(), client, "welcome-service", payload)
+		reply, err := requester.Request(r.Context(), t, "welcome-service", payload)
 		if err != nil {
 			log.Fatalf("Request failed: %v", err)
 		}

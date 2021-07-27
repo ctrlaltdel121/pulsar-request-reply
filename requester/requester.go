@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/fanatic/pulsar-request-reply/common"
+	"github.com/fanatic/pulsar-request-reply/transport"
 )
 
 type Requester struct {
@@ -14,15 +14,15 @@ type Requester struct {
 	consumer *common.Consumer
 }
 
-func New(ctx context.Context, client pulsar.Client, topic, requestID string) (*Requester, error) {
+func New(ctx context.Context, conn transport.Connection, topic, requestID string) (*Requester, error) {
 	log.Printf("creating requester...")
 
-	producer, err := common.NewProducer(ctx, client, topic)
+	producer, err := common.NewProducer(ctx, conn, topic)
 	if err != nil {
 		return nil, fmt.Errorf("Could not instantiate Pulsar producer: %v", err)
 	}
 
-	consumer, err := common.NewConsumer(ctx, client, topic+".reply-"+requestID, "reply-"+requestID)
+	consumer, err := common.NewConsumer(ctx, conn, topic+".reply-"+requestID, "reply-"+requestID)
 	if err != nil {
 		return nil, fmt.Errorf("Could not instantiate Pulsar consumer: %v", err)
 	}
